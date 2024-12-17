@@ -1,0 +1,1 @@
+{"Nitrogen": "int64", "Phosphorus": "int64", "Potassium": "int64", "Temperature": "float64", "Humidity": "float64", "pH_Value": "float64", "Rainfall": "float64", "Crop": "object"}
