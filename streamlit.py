@@ -8,142 +8,105 @@ import pandas as pd
 CONFIG_DIR = "config"
 MODEL_PATH = "model/best_rf_model.joblib"
 TRAINING_COLUMNS_PATH = f"{CONFIG_DIR}/training_columns.json"
+LABEL_MAPPING_PATH = f"{CONFIG_DIR}/label_mapping.json"
 
 with open(TRAINING_COLUMNS_PATH, 'r') as file:
     training_columns = json.load(file)['training_columns']
 
+with open(LABEL_MAPPING_PATH, 'r') as file:
+    label_mapping = json.load(file)
+
 # Load model
 model = joblib.load(MODEL_PATH)
 
-# Extract feature importance (if available)
-if hasattr(model, "feature_importances_"):
-    feature_importances = model.feature_importances_
-    feature_importance_df = pd.DataFrame({
-        "Feature": training_columns,
-        "Importance": feature_importances
-    }).sort_values(by="Importance", ascending=False)
+# Feature Descriptions
+feature_descriptions = {
+    "Nitrogen": "Nitrogen content in the soil (integer value).",
+    "Phosphorus": "Phosphorus content in the soil (integer value).",
+    "Potassium": "Potassium content in the soil (integer value).",
+    "Temperature": "Soil temperature in degrees Celsius.",
+    "Humidity": "Relative humidity percentage in the field.",
+    "pH_Value": "Measure of soil acidity/alkalinity.",
+    "Rainfall": "Amount of rainfall in millimeters.",
+}
 
-# Background and custom styling with a green theme
-st.markdown(
-    """
-    <style>
-    .stApp {
-        background: linear-gradient(to bottom right, #a8d08d, #3a6d40);  /* Green gradient background */
-        color: #ffffff;  /* White text for contrast */
-    }
-    .header {
-        text-align: center;
-        font-size: 40px;
-        font-weight: bold;
-        color: #2c4f2c;
-        animation: glow 2s ease-in-out infinite alternate;
-    }
-    @keyframes glow {
-        from {
-            text-shadow: 0 0 10px #58d68d, 0 0 20px #2c4f2c;
-        }
-        to {
-            text-shadow: 0 0 20px #58d68d, 0 0 30px #2c4f2c;
-        }
-    }
-    .form-style {
-        background-color: rgba(255, 255, 255, 0.9);  /* Lighter background for form */
-        padding: 20px;
-        border-radius: 15px;
-    }
-    .button-style:hover {
-        background-color: #3a6d40;  /* Dark green button hover effect */
-        color: white;
-    }
+# Sidebar Theme Toggle
+theme = st.sidebar.radio("Choose Theme", options=["🌞 Light Theme", "🌙 Dark Theme"])
+if theme == "🌙 Dark Theme":
+    st.markdown(
+        """
+        <style>
+        .stApp { background-color: #1E1E1E; color: white; }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
 
-    /* Sidebar Styling */
-    .sidebar .sidebar-content {
-        color: #ffffff;
-        background-color: #2c6e33;  /* Darker green sidebar background */
-        font-size: 18px;
-    }
-    .sidebar .sidebar-content h1 {
-        color: #ffffff;
-        font-size: 22px;
-        font-weight: bold;
-    }
-    .sidebar .sidebar-content p {
-        color: #ffffff;
-        font-size: 16px;
-    }
-    .sidebar .sidebar-content li {
-        font-size: 16px;
-        color: #ffffff;
-    }
-    </style>
-    """,
-    unsafe_allow_html=True
-)
-
-# Sidebar
+# Sidebar Instructions
 st.sidebar.title("🌿 Crop Recommendation System")
 st.sidebar.markdown(
     """
-    **Instructions**:
-    - Input soil and weather parameters.
-    - Get the best crop recommendation.
-    - Download a prediction report for your records.
+    **How It Works**:
+    - Input soil and environmental parameters.
+    - View the best crop recommendation.
+    - Download a prediction report.
     """
 )
 
 # Header
-st.markdown('<div class="header">Crop Recommendation System</div>', unsafe_allow_html=True)
-
-# Descriptions for features
-feature_descriptions = {
-    "Nitrogen": "Nitrogen content ratio in the soil (integer value).",
-    "Phosphorus": "Phosphorous content ratio in the soil (integer value).",
-    "Potassium": "Potassium content ratio in the soil (integer value).",
-    "Temperature": "Soil temperature in degrees Celsius.",
-    "Humidity": "Relative humidity percentage in the field.",
-    "pH_Value": "Measure of soil acidity/alkalinity.",
-    "Rainfall": "Amount of rainfall in millimeters."
-}
+st.markdown(
+    '<h1 style="text-align: center; color: #4CAF50;">🌾 Crop Recommendation System</h1>',
+    unsafe_allow_html=True,
+)
 
 # Input Form
+st.subheader("Enter Soil and Environmental Parameters")
 input_features = {}
-with st.form("prediction_form", clear_on_submit=False):
-    st.markdown('<div class="form-style">', unsafe_allow_html=True)
-    st.header("Enter Soil and Environmental Parameters:")
 
+with st.form("prediction_form", clear_on_submit=False):
     for col in training_columns:
         if col in ["Nitrogen", "Phosphorus", "Potassium"]:
             input_features[col] = st.number_input(
                 f"{col} (integer)", value=0, step=1, help=feature_descriptions[col]
             )
+        elif col == "pH_Value":
+            input_features[col] = st.slider(
+                "pH Value (1-14)", min_value=1.0, max_value=14.0, value=7.0, step=0.1
+            )
         else:
             input_features[col] = st.number_input(f"{col}", value=0.0, help=feature_descriptions[col])
-    
-    submit = st.form_submit_button("🌾 Predict")
-    st.markdown('</div>', unsafe_allow_html=True)
 
-# Prediction Logic
+    submit = st.form_submit_button("🌾 Predict")
+
+# Prediction and Output
 if submit:
     try:
-        # Prepare input and predict
+        # Prepare input features
         features = np.array([list(input_features.values())])
-        prediction = model.predict(features)
-        recommended_crop = prediction[0]  # Extract prediction
-        
+        prediction = model.predict(features)[0]
+        recommended_crop = label_mapping[str(prediction)]
+
         # Display prediction
         st.success(f"🌱 Recommended Crop: **{recommended_crop}**")
+        st.balloons()
 
-        # Visualize input data
-        st.subheader("Your Input Data:")
+        # Show Input Data
+        st.subheader("Your Input Data")
         input_df = pd.DataFrame([input_features])
         st.table(input_df)
 
         # Feature Importance Visualization
-        if "feature_importances_" in dir(model):
-            st.subheader("🔍 Feature Importance:")
-            st.bar_chart(feature_importance_df.set_index("Feature")["Importance"])
+        if hasattr(model, "feature_importances_"):
+            st.subheader("🔍 Feature Importance")
+            feature_importances = model.feature_importances_
+            importance_df = pd.DataFrame({
+                "Feature": training_columns,
+                "Importance": feature_importances
+            }).sort_values(by="Importance", ascending=False)
 
-        # Generate downloadable report
+            st.bar_chart(importance_df.set_index("Feature")["Importance"])
+
+        # Downloadable Prediction Report
         report = input_features.copy()
         report["Recommended Crop"] = recommended_crop
         report_df = pd.DataFrame([report])
@@ -163,7 +126,7 @@ if submit:
 st.markdown("---")
 st.markdown(
     """
-    Developed by **John Olalemi** | Contact: [johnolalemi90@gmail.com]  
+    Developed by **John Olalemi**  
     🌾 Empowering Farmers with AI Solutions.
     """
 )

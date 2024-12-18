@@ -10,9 +10,13 @@ app = Flask(__name__)
 CONFIG_DIR = "config"
 MODEL_PATH = "model/best_rf_model.joblib"
 TRAINING_COLUMNS_PATH = f"{CONFIG_DIR}/training_columns.json"
+LABEL_MAPPING_PATH = f"{CONFIG_DIR}/label_mapping.json"
 
 with open(TRAINING_COLUMNS_PATH, 'r') as file:
     training_columns = json.load(file)['training_columns']
+
+with open(LABEL_MAPPING_PATH, 'r') as file:
+    label_mapping = json.load(file)
 
 # Load model
 model = joblib.load(MODEL_PATH)
@@ -28,8 +32,9 @@ def predict():
             raise ValueError("Input features do not match the training columns.")
 
         # Predict
-        prediction = model.predict(features)
-        return jsonify({'prediction': int(prediction[0])})
+        prediction = model.predict(features)[0]  # Get numeric prediction
+        crop_name = label_mapping[str(prediction)]  # Map to crop name
+        return jsonify({'prediction': crop_name})
     except KeyError:
         return jsonify({'error': 'Invalid input format. Provide features key.'}), 400
     except ValueError as ve:
